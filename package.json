@@ -1,0 +1,26 @@
+{
+  "name": "caching-proxy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "bin": {
+    "caching-proxy": "./bin/cli.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jaskaransingh012/Caching-Proxy.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jaskaransingh012/Caching-Proxy/issues"
+  },
+  "homepage": "https://github.com/Jaskaransingh012/Caching-Proxy#readme",
+  "dependencies": {
+    "commander": "^15.0.0"
+  }
+}
