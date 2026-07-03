@@ -321,6 +321,139 @@ caching-proxy --port 3000 --origin http://dummyjson.com
 
 
 
+# Cache Implementation - Core Concepts with Examples
+
+
+## What is Caching?
+- Temporary storage of responses in memory
+- Reduces origin server load and improves speed
+
+
+## Cache Flow
+```
+Client Request → Check Cache → [HIT] → Return Cached Response
+                              → [MISS] → Forward to Origin → Store → Return
+```
+
+
+## Cache Storage Structure
+```javascript
+{
+  '/products': {
+    data: '{"products":[...]}',
+    timestamp: 1634567890,
+    headers: { 'content-type': 'application/json' }
+  }
+}
+```
+
+
+## Cache Key Design
+```javascript
+// Basic
+key = req.url  // "/products"
+
+
+// Better (includes method)
+key = req.method + req.url  // "GET/products"
+
+
+// Advanced (includes headers)
+key = req.method + req.url + req.headers.accept
+```
+
+
+## TTL (Time To Live)
+- Duration cache remains valid
+- Balance between freshness and performance
+- Common: 60s, 300s, 3600s
+
+
+```javascript
+const isExpired = (cached) => {
+    return Date.now() - cached.timestamp > TTL;
+}
+```
+
+
+## Cache Operations
+
+
+### 1. Lookup
+```javascript
+getFromCache(key)  // Returns cached data or null
+```
+
+
+### 2. Store
+```javascript
+setInCache(key, data, headers)
+// Saves response with timestamp
+```
+
+
+### 3. Clear
+```javascript
+clearCache()  // Removes all entries
+delete cache[key]  // Remove specific entry
+```
+
+
+## HTTP Cache Headers (Origin Says)
+```javascript
+// Honor origin's cache instructions
+Cache-Control: no-store     // Don't cache
+Cache-Control: max-age=300  // Cache for 5 mins
+Cache-Control: no-cache     // Revalidate before use
+```
+
+
+## What to Cache
+✅ **Cache:**
+- GET requests only
+- Static assets (CSS, JS, images)
+- API responses (with TTL)
+- Public content
+
+
+❌ **Don't Cache:**
+- POST/PUT/DELETE requests
+- Private/user data
+- Error responses (4xx, 5xx)
+- `Cache-Control: no-store`
+
+
+## Cache Hit vs Miss Performance
+```
+Cache Hit:  ~1-5ms   (in-memory)
+Cache Miss: ~50-200ms (network to origin)
+```
+
+
+## Clear Cache Implementation
+```bash
+# CLI command triggers cache clear
+caching-proxy --clear-cache
+```
+```javascript
+// When flag detected
+if (args.includes('--clear-cache')) {
+    cache = {};  // Clear all cached data
+}
+```
+
+
+## Integration Flow Example
+```
+1. Parse CLI (--port 3000, --origin http://api.com)
+2. Start HTTP Server on port 3000
+3. For each request:
+   a. Build cache key from req.url
+   b. Check cache → if hit, return cached
+   c. If miss, forward to origin
+   d. Store response in cache
+   e. Return to client
+```
 
 
 
