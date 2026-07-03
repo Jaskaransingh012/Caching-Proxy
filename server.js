@@ -1,11 +1,26 @@
 const http = require('http');
+const { generateCacheKey } = require('./services/generateCacheKey');
+const { serveFromCache } = require('./services/serveFromCache');
+const cache = require('./config/cache');
 
 
 function startServer({ port, origin, clearCache }) {
+
+
+
+
+
+
     const server = http.createServer(async (req, res) => {
+
+
         try {
 
             const { url, method, headers } = req;
+
+            const key = generateCacheKey(req);
+
+            if (serveFromCache(req, res, key)) return;
 
             let body = "";
             req.on("data", (chunk) => {
@@ -13,24 +28,49 @@ function startServer({ port, origin, clearCache }) {
             })
 
             req.on("end", async () => {
-                const response = await fetch(origin + url, {
-                    method,
-                    headers,
-                    body: ["GET", "HEAD"].includes(method) ? undefined : body,
-                });
+                try {
 
 
-                for (const [key, value] of response.headers) {
-                    res.setHeader(key, value);
+                    const response = await fetch(origin + url, {
+                        method,
+                        headers,
+                        body: ["GET", "HEAD"].includes(method) ? undefined : body,
+                    });
+                    const result = await response.text();
+
+                    const headersObject = {};
+
+                    for (const [key, value] of response.headers) {
+                        headersObject[key] = value;
+                    }
+
+                    const entery = {
+                        statusCode: response.status,
+                        headers: headersObject,
+                        body: result,
+                    }
+                    cache.set(key, entery);
+
+                    for (const [key, value] of response.headers) {
+                        res.setHeader(key, value);
+                    }
+                    res.setHeader('X-Cache', 'MISS');
+
+                    res.statusCode = response.status;
+
+                    res.end(result);
                 }
 
-                res.statusCode = response.status;
-                const result = await response.text();
-                res.end(result);
+                catch (err) {
+                    console.error(err);
+                    res.statusCode = 500;
+                    res.end("Internal Server Error");
+                }
+
             })
 
 
-        } catch (error) {
+        } catch (err) {
             console.error(err);
             res.statusCode = 500;
             res.end("Internal Server Error");
@@ -51,6 +91,11 @@ function startServer({ port, origin, clearCache }) {
 
     server.listen(port, () => {
         console.log(`Server running at http://localhost:${port}`);
+        if(clearCache==true){
+            cache.clear();
+            console.log("Initial cache cleared");
+        }
+
     });
 }
 

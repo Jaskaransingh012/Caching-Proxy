@@ -30,4 +30,6 @@ console.log("Hello From the CLI");
 
 console.log(options);
 
+
+
 startServer({port:options.port, origin: options.origin, clearCache: options.clearCache});
