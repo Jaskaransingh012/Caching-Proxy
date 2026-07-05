@@ -1,331 +1,155 @@
-# CLI Applications with Node.js - Learnings
+#Cache-Proxy
+===========
 
+A lightweight CLI caching proxy server for HTTP GET requests.\
+It sits between your client and an origin server, caching responses to reduce latency and origin load.
 
-## What is a CLI?
-- **CLI** = Command Line Interface
-- Interact by typing commands in terminal, not clicking buttons
-- Examples: `git status`, `npm install`, `node app.js`
+[](https://badge.fury.io/js/cache-proxy)<https://badge.fury.io/js/cache-proxy.svg>\
+[](https://nodejs.org/)<https://img.shields.io/badge/node-%253E%253D18.0.0-brightgreen>
 
+* * * * *
 
-## How CLI Works
-- OS looks through directories in `PATH` environment variable
-- Finds executable matching the command name
-- Runs it from anywhere
+Features
+--------
 
+-   Simple CLI -- start the proxy with `--port` and `--origin`.
 
-## Node.js as CLI
-```bash
-node index.js
-```
-- Node executes the JavaScript file
-- First CLI program: `console.log("Hello World")`
+-   In‑memory cache -- stores responses with configurable TTL (default 60s).
 
+-   Cache‑aware headers -- adds `X-Cache: HIT` or `X-Cache: MISS` to every response.
 
-## Process Arguments
-- **`process.argv`** - Stores all command-line arguments
-- First two values always:
-  - Index 0: Node executable path
-  - Index 1: Current script path
-  - Index 2+: User arguments
+-   Only GET requests -- optimized for read‑heavy workloads (extendable).
 
+-   Clear cache on start -- use `--clear-cache` to start with an empty store.
 
-```javascript
-// Example: node index.js hello world
-console.log(process.argv);
-// ['/usr/bin/node', '/path/index.js', 'hello', 'world']
-```
+-   Lightweight -- built with Node.js native `http` and `fetch`.
 
+* * * * *
 
-## Slicing Arguments
-```javascript
-const args = process.argv.slice(2);
-// Removes first two values, keeps only user arguments
-```
+Installation
+------------
 
+### Global (for CLI usage)
 
-### Important Notes:
-- All arguments arrive as **strings**
-- Convert to numbers if needed: `Number("3000")`
-- Your program receives: `['--port', '3000', '--origin', 'http://dummyjson.com']`
+bash
 
+npm install -g cache-proxy
 
-## The `process` Object
-Global Node.js object providing process information:
+### Local (as a project dependency)
 
+bash
 
-```javascript
-process.argv      // Command-line arguments
-process.pid       // Process ID
-process.cwd()     // Current working directory
-process.env       // Environment variables
-process.exit()    // Exit program
-```
+npm install cache-proxy
 
+* * * * *
 
-## Exercise
-```javascript
-// index.js
-console.log('Full argv:', process.argv);
-console.log('Sliced args:', process.argv.slice(2));
-console.log('Argument count:', process.argv.slice(2).length);
-console.log('Current directory:', process.cwd());
-```
+Usage
+-----
 
+Start the proxy by providing a port and an origin URL:
 
-```bash
-node index.js --port 3000 --origin http://dummyjson.com
-```
+bash
 
+cache-proxy --port 3000 --origin https://api.example.com
 
-## Key Takeaways
-✅ CLI = terminal commands
-✅ Node executes JavaScript files  
-✅ `process.argv` stores command arguments
-✅ Always use `slice(2)` for user arguments
-✅ All arguments are strings
-✅ `process` provides runtime information
+Now any request to `http://localhost:3000/<path>` will be forwarded to `https://api.example.com/<path>`.
 
+### CLI Options
 
+| Option | Description |
+| --- | --- |
+| `--port <number>` | (required) Port on which the proxy listens. |
+| `--origin <url>` | (required) Base URL of the origin server (e.g., `https://jsonplaceholder.typicode.com`). |
+| `--clear-cache` | Optional. Clears the in‑memory cache before starting the server. |
+| `--ttl <ms>` | Optional. Cache TTL in milliseconds (default: `60000`). |
 
-# Step 2 - Parsing Command Line Arguments
+### Example
 
+bash
 
-## What is Parsing?
-- Converting raw array of arguments into structured, usable format
-- Example: `['--port', '3000']` → `{ port: 3000 }`
+# Start proxy with a 30‑second TTL and clear cache initially
+cache-proxy --port 8080 --origin https://api.github.com --ttl 30000 --clear-cache
 
+* * * * *
 
-## Raw Array vs Parsed Object
-```javascript
-// Raw array (hard to use)
-['--port', '3000', '--origin', 'http://dummyjson.com']
-
-
-// Parsed object (easy to use)
-{
-  port: 3000,
-  origin: 'http://dummyjson.com',
-  clearCache: false
-}
-```
+How It Works
+------------
 
+1.  Request arrives -- the proxy receives a `GET` request.
 
-## Types of CLI Arguments
+2.  Cache key generation -- a key is built from the request method, URL, and relevant headers.
 
+3.  Cache lookup -- if an entry exists and hasn't expired, it is served immediately with `X-Cache: HIT`.
 
-### 1. Positional Arguments
-```bash
-node app.js file.txt
-```
-```javascript
-['file.txt']  // Position matters
-```
+4.  Origin fetch -- on a cache miss, the proxy forwards the request to the origin.
 
+5.  Store response -- the response body, headers, and status are stored with an expiration timestamp.
 
-### 2. Flags (No Value)
-```bash
-node app.js --verbose
-```
-```javascript
-['--verbose']  // Presence = true
-```
-```javascript
-{ verbose: true }
-```
+6.  Return to client -- the response is sent with `X-Cache: MISS` and the original headers (except `content-encoding` and `content-length` are filtered).
 
+* * * * *
 
-### 3. Options (With Value)
-```bash
-node app.js --port 3000
-```
-```javascript
-['--port', '3000']  // Pair: flag + value
-```
-```javascript
-{ port: 3000 }
-```
+Example Requests
+----------------
 
+Start the proxy:
 
-### 4. Multiple Options
-```bash
-node app.js --port 3000 --origin http://localhost:5000
-```
-```javascript
-['--port', '3000', '--origin', 'http://localhost:5000']
-```
-
-
-
-# Step 3 - Making a Real CLI Command
-
-
-## The Shebang (`#!/usr/bin/env node`)
-- Must be first line of every Node.js CLI file
-- Tells OS: "Execute this file using `node` from PATH"
-- Without it, OS doesn't know which interpreter to use
-
-
-## `package.json` Configuration
-### The `bin` Field
-```json
-{
-  "name": "caching-proxy",
-  "version": "1.0.0",
-  "bin": {
-    "caching-proxy": "./cli.js"
-  }
-}
-```
-- Maps command name to executable file
-- When user types `caching-proxy`, it runs `cli.js`
-
-
-## `npm link` Command
-- Creates global symbolic link to your project
-- Makes command available system-wide
-- Allows running from any directory, not just project folder
-
-
-## Complete Flow
-1. User types `caching-proxy --port 3000`
-2. Shell finds global command (via `npm link`)
-3. Shebang tells OS to use `node`
-4. Node executes `cli.js`
-5. `process.argv` receives the arguments
-6. Your parser handles them
-
-
-## Required Steps
-1. ✅ Add shebang: `#!/usr/bin/env node` to `cli.js`
-2. ✅ Add `bin` field to `package.json`
-3. ✅ Run `npm link`
-4. ✅ Test: `caching-proxy --port 3000`
-
-
-## Key Concept
-- `node cli.js` = development mode (manual)
-- `caching-proxy` = production mode (global command)
-
-
-## Common Use Cases
-- Global tools like `npm`, `git`, `vite`
-- Local development scripts in `node_modules/.bin/`
-- Custom project-specific commands
-
-
-
-# Step 4 - Building an HTTP Server
-
-## What is an HTTP Server?
-- Program that listens for incoming HTTP requests
-- Receives requests from clients (browser, Postman, curl)
-- Processes requests and sends back responses
-- Core of every backend application
-
-## HTTP Protocol
-- **H**yper**T**ext **T**ransfer **P**rotocol
-- Set of rules for client-server communication
-- Defines request/response format
+bash
 
-## Client vs Server
-- **Client**: Initiates communication (browser, mobile app, curl)
-- **Server**: Waits for and responds to requests
+cache-proxy --port 3000 --origin https://jsonplaceholder.typicode.com
 
-## Node.js HTTP Module
-```javascript
-import http from 'http';  // ES Modules
-// OR
-const http = require('http');  // CommonJS
-```
+Then use `curl`:
 
-## Creating a Server
-```javascript
-const server = http.createServer(callback);
-```
-- Creates server object (like manufacturing a car)
-- Doesn't start listening yet
+bash
 
-## Listening on a Port
-```javascript
-server.listen(3000, () => {
-    console.log('Server started');
-});
-```
-- Starts the server (like turning on engine)
-- Reserves a port on the OS
-- Port = specific "apartment" on computer
+# First request -- cache MISS
+curl -v http://localhost:3000/posts/1
+# Response includes: X-Cache: MISS
 
-## Request Handler Callback
-```javascript
-const server = http.createServer((req, res) => {
-    // Called for EVERY request
-});
-```
-- Executes once per incoming request
-- Never called by your code - Node calls it automatically
+# Second request -- cache HIT
+curl -v http://localhost:3000/posts/1
+# Response includes: X-Cache: HIT
 
-## Request Object (`req`)
-Contains all request information:
-- `req.method` - HTTP method (GET, POST, etc.)
-- `req.url` - Request path (/products, /users)
-- `req.headers` - Headers object
+* * * * *
 
-## Response Object (`res`)
-Used to send response back:
-- `res.end(data)` - Send response and end connection
-- **Must always call `res.end()`** - browser waits forever otherwise
+Why Use a Caching Proxy?
+------------------------
 
-## Complete Minimal Server
-```javascript
-const http = require('http');
+-   Reduce latency -- serve cached responses almost instantly.
 
-const server = http.createServer((req, res) => {
-    res.end('Hello World');
-});
+-   Offload origin -- fewer requests reach your backend.
 
-server.listen(3000, () => {
-    console.log('Server Running');
-});
-```
+-   Simple integration -- no changes to your existing clients; just point them to the proxy.
 
-## Server Lifecycle
-1. `node cli.js` - Program starts
-2. `createServer()` - Server object created (once)
-3. `listen()` - Server starts listening
-4. **Wait for requests**
-5. Request arrives → Callback executes (per request)
-6. Send response → Wait for next request
+* * * * *
 
-## Integration with CLI
-```bash
-caching-proxy --port 3000 --origin http://dummyjson.com
-```
-- CLI parses arguments (once)
-- Extracts port
-- Creates HTTP server
-- `server.listen(port)`
-- Server keeps running indefinitely
+Configuration
+-------------
 
-## Key Concepts
-- `createServer()` = **Manufacturing** (once)
-- `listen()` = **Starting** (once)
-- Callback = **Per request** (many times)
-- Port = Specific entry point on machine
+All configuration is done via CLI arguments. There is no config file, keeping it minimal and transparent.
 
+-   TTL -- controls how long a response stays fresh. After expiry, the next request will re‑fetch from the origin.
 
+-   Clear cache -- useful in development or when you want to force a cold start.
 
-## Testing Your Server
-- Browser: `http://localhost:3000`
-- curl: `curl http://localhost:3000`
-- Postman: Create GET request to localhost
+* * * * *
 
+Node.js Compatibility
+---------------------
 
+Requires Node.js 18 or higher (uses native `fetch`). If you need older versions, you can replace `fetch` with `node-fetch` or `axios`.
 
+* * * * *
 
+Contributing
+------------
 
+Contributions are welcome!
 
+-   Fork the repository.
 
+-   Create a feature branch.
 
+-   Submit a pull request with a clear description of changes.
 
-
-
+Please ensure your code passes linting and includes appropriate tests.

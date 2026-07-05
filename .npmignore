@@ -1,0 +1,13 @@
+# Ignore
+node_modules/
+.git/
+test/
+*.log
+.env
+
+# Keep
+lib/
+cli.js
+index.js
+package.json
+README.md

@@ -4,7 +4,7 @@ const { serveFromCache } = require('./services/serveFromCache');
 const cache = require('./config/cache');
 
 
-function startServer({ port, origin, clearCache }) {
+function startServer({ port, origin, clearCache, ttl = 60000 }) {
 
 
 
@@ -12,7 +12,7 @@ function startServer({ port, origin, clearCache }) {
 
 
     const server = http.createServer(async (req, res) => {
-
+        console.log("first")
 
         try {
 
@@ -37,6 +37,7 @@ function startServer({ port, origin, clearCache }) {
                         body: ["GET", "HEAD"].includes(method) ? undefined : body,
                     });
                     const result = await response.text();
+                    console.log(result);
 
                     const headersObject = {};
 
@@ -48,10 +49,16 @@ function startServer({ port, origin, clearCache }) {
                         statusCode: response.status,
                         headers: headersObject,
                         body: result,
+                        expires: Date.now() + ttl
                     }
-                    cache.set(key, entery);
+                    cache.put(key, entery);
 
                     for (const [key, value] of response.headers) {
+                        if (key.toLowerCase() === "content-encoding") continue;
+                        if (
+                            key.toLowerCase() === "content-encoding" ||
+                            key.toLowerCase() === "content-length"
+                        ) continue;
                         res.setHeader(key, value);
                     }
                     res.setHeader('X-Cache', 'MISS');
@@ -91,7 +98,7 @@ function startServer({ port, origin, clearCache }) {
 
     server.listen(port, () => {
         console.log(`Server running at http://localhost:${port}`);
-        if(clearCache==true){
+        if (clearCache == true) {
             cache.clear();
             console.log("Initial cache cleared");
         }
