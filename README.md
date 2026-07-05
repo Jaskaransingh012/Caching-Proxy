@@ -1,4 +1,4 @@
-#Cache-Proxy
+Cache-Proxy
 ===========
 
 A lightweight CLI caching proxy server for HTTP GET requests.\
